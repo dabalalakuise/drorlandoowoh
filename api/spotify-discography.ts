@@ -16,7 +16,10 @@ async function getSpotifyToken() {
     body: 'grant_type=client_credentials',
   });
   const data = await response.json();
-  if (data.error) return null;
+  if (data.error) {
+    console.error('Spotify token error:', data);
+    return null;
+  }
   return data.access_token as string;
 }
 
@@ -29,17 +32,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!artistId) return res.status(503).json({ error: 'Service unavailable' });
 
   const token = await getSpotifyToken();
-  if (!token) return res.status(503).json({ error: 'Service unavailable' });
+  if (!token) return res.status(503).json({ error: 'Token fetch failed', clientId: !!process.env.SPOTIFY_CLIENT_ID, secret: !!process.env.SPOTIFY_CLIENT_SECRET });
 
   try {
     const response = await fetch(
-      `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=10`,
+      `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=20&market=US`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const data = await response.json();
-    if (data.error) return res.status(response.status).json({ error: data.error.message });
+    if (data.error) return res.status(response.status).json({ error: data.error.message, status: data.error.status });
     return res.json(data.items || []);
   } catch (error) {
-    return res.status(503).json({ error: 'Service unavailable', details: String(error) });
+    return res.status(503).json({ error: 'Fetch failed', details: String(error) });
   }
 }
